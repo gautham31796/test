@@ -46,25 +46,32 @@ public class IntegrationConfig {
                 ObjectMapper objectMapper = new ObjectMapper();
                 try {
                     JsonNode root = objectMapper.readTree(file);
-                    JsonNode testData = root.path("testData");
-                    if (testData.isObject()) {
-                        ObjectNode newTestData = objectMapper.createObjectNode();
-                        testData.fieldNames().forEachRemaining(key ->
-                            newTestData.set(key.toLowerCase(), testData.get(key))
-                        );
-                        ((ObjectNode) root).set("testData", newTestData);
+
+                    if (root.isObject()) {
+                        ObjectNode rootObj = (ObjectNode) root;
+                        JsonNode testData = rootObj.path("testData");
+
+                        if (testData.isObject()) {
+                            ObjectNode newTestData = objectMapper.createObjectNode();
+                            testData.fieldNames().forEachRemaining(key ->
+                                newTestData.set(key.toLowerCase(), testData.get(key))
+                            );
+
+                            rootObj.set("testData", newTestData);
+                            String result = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(rootObj);
+                            return result;
+                        }
                     }
-                    String result = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
-                    logger.info("Transformation completed successfully for file: {}", file.getName());
-                    return result;
+
+                    logger.warn("Root or testData was not an object node.");
+                    return objectMapper.writeValueAsString(root);
                 } catch (Exception e) {
                     logger.error("Failed to transform file: {}", file.getName(), e);
                     throw new RuntimeException("Failed to transform JSON", e);
                 }
             })
-            .handle(Files.outboundAdapter(new File("output")).autoCreateDirectory(true))
             .handle((payload, headers) -> {
-                logger.info("File successfully written to output directory");
+                logger.info("Final transformed JSON:\n{}", payload);
                 return null;
             })
             .get();
